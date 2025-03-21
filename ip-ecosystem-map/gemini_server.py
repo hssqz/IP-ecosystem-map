@@ -11,8 +11,12 @@ app = Flask(__name__)
 CORS(app)  # 启用CORS，允许前端访问
 
 # 设置API密钥
-API_KEY = "AIzaSyDbLTCxoRRE-xPN-VHJZFObUZDBXV-b-lw"
-os.environ["GEMINI_API_KEY"] = API_KEY
+# 从环境变量获取API密钥，如果没有则使用默认值（推荐在生产环境中设置环境变量）
+API_KEY = os.environ.get("GEMINI_API_KEY", "")
+if not API_KEY:
+    print("警告: 未设置GEMINI_API_KEY环境变量，API调用将失败")
+    # 在开发环境可以设置一个默认值，但不要在生产代码或GitHub中包含真实密钥
+    # API_KEY = "your_default_key_for_development"
 
 # 初始化Gemini客户端
 client = genai.Client(api_key=API_KEY)
