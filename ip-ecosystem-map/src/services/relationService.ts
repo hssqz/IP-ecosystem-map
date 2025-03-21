@@ -1,4 +1,38 @@
 import { Member, Relation, RelationType, GraphData, Node, Link } from '../types';
+import { analyzeMemberCapabilities } from './llmService';
+
+/**
+ * 通过LLM增强成员的标签
+ * @param members 成员数据数组
+ * @returns 增强后的成员数据数组
+ */
+export const enhanceMembersWithLLM = async (members: Member[]): Promise<Member[]> => {
+  const enhancedMembers: Member[] = [];
+  
+  for (let i = 0; i < members.length; i++) {
+    const member = members[i];
+    console.log(`使用LLM分析成员 ${member.nickname} 的能力和特点...`);
+    
+    try {
+      // 使用LLM分析成员能力
+      const tags = await analyzeMemberCapabilities(member);
+      
+      // 创建带有新标签的成员对象
+      enhancedMembers.push({
+        ...member,
+        tags: tags
+      });
+      
+      console.log(`成功增强成员 ${member.nickname} 的标签: ${tags.join(', ')}`);
+    } catch (error) {
+      console.error(`分析成员 ${member.nickname} 时出错:`, error);
+      // 如果分析失败，保留原始成员数据
+      enhancedMembers.push(member);
+    }
+  }
+  
+  return enhancedMembers;
+};
 
 /**
  * 生成成员之间的关系数据
@@ -147,7 +181,7 @@ export const convertToGraphData = (members: Member[], relations: Relation[]): Gr
 
 /**
  * 生成成员匹配推荐
- * @param member 目标成员
+ * @param memberId 目标成员ID
  * @param allMembers 所有成员
  * @param relations 所有关系
  * @returns 排序后的匹配成员ID数组

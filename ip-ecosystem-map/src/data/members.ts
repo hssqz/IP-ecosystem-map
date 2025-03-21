@@ -107,7 +107,7 @@ export const members: Member[] = [
   {
     id: "7",
     nickname: "甄淇深",
-    location: "未知",
+    location: "上海",
     introduction: "目前在Jadevalue孵化器 ，专注AI 领域的投资与孵化。法国全法科协孵化器负责人。计算机本+金融硕",
     type: "current",
     resources: [

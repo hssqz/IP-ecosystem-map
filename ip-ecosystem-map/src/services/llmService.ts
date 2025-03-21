@@ -1,7 +1,8 @@
 import { Member, MatchResult } from '../types';
+import axios from 'axios';
 
-// 模拟LLM API调用的延迟
-const simulateDelay = () => new Promise(resolve => setTimeout(resolve, 1000));
+// Python后端API基础URL
+const API_BASE_URL = 'http://localhost:8000/api';
 
 /**
  * 提取成员能力和特点
@@ -9,42 +10,65 @@ const simulateDelay = () => new Promise(resolve => setTimeout(resolve, 1000));
  * @returns 提取的能力标签
  */
 export const analyzeMemberCapabilities = async (member: Member): Promise<string[]> => {
-  // 在真实项目中，这里会调用Gemini API进行分析
-  // 这里我们模拟LLM的分析结果
-  await simulateDelay();
+  try {
+    console.log(`正在通过API分析成员 ${member.nickname} 的能力和特点...`);
+    const response = await axios.post(`${API_BASE_URL}/analyze-member`, {
+      member
+    });
+    
+    if (response.status === 200 && Array.isArray(response.data)) {
+      console.log(`成功获取到 ${member.nickname} 的标签:`, response.data);
+      return response.data;
+    } else {
+      console.warn(`API返回了非预期的响应:`, response.data);
+      return extractFallbackTags(member);
+    }
+  } catch (error) {
+    console.error(`调用分析成员API失败:`, error);
+    return extractFallbackTags(member);
+  }
+};
+
+/**
+ * 备用的标签提取方法，当API调用失败时使用
+ */
+const extractFallbackTags = (member: Member): string[] => {
+  const existingTags = member.tags || [];
+  if (existingTags.length > 0) {
+    return existingTags;
+  }
   
-  // 从资源和介绍中提取关键能力
   const capabilities: string[] = [];
   
-  // 从资源中提取
+  // 从资源中提取标签
   member.resources.forEach(resource => {
     if (resource.tags) {
       capabilities.push(...resource.tags);
     }
   });
   
-  // 根据自我介绍提取
-  const introKeywords = extractKeywordsFromIntro(member.introduction);
-  capabilities.push(...introKeywords);
+  // 从需求中提取标签
+  member.needs.forEach(need => {
+    if (need.tags) {
+      capabilities.push(...need.tags);
+    }
+  });
   
-  // 去重
-  const uniqueCapabilities = Array.from(new Set(capabilities));
-  return uniqueCapabilities;
-};
-
-/**
- * 从自我介绍中提取关键词
- */
-const extractKeywordsFromIntro = (intro: string): string[] => {
-  // 模拟LLM提取关键词的结果
+  // 提取关键词
   const commonKeywords = [
     '创业', 'AI', '社群', '产品', '运营', '投资',
     '技术', '商务', '营销', '金融', '国际化', '合作'
   ];
   
-  return commonKeywords.filter(keyword => 
-    intro.toLowerCase().includes(keyword.toLowerCase())
+  const introKeywords = commonKeywords.filter(keyword => 
+    member.introduction.toLowerCase().includes(keyword.toLowerCase())
   );
+  
+  capabilities.push(...introKeywords);
+  
+  // 去重
+  const uniqueCapabilities = Array.from(new Set(capabilities));
+  return uniqueCapabilities.slice(0, 10); // 最多返回10个标签
 };
 
 /**
@@ -59,8 +83,6 @@ export const generateMatchAnalysis = async (
   targetId: string, 
   members: Member[]
 ): Promise<MatchResult> => {
-  await simulateDelay();
-  
   const sourceMember = members.find(m => m.id === sourceId);
   const targetMember = members.find(m => m.id === targetId);
   
@@ -68,134 +90,134 @@ export const generateMatchAnalysis = async (
     throw new Error("成员不存在");
   }
   
-  // 分析资源和需求的匹配
-  const resourceNeedMatch = analyzeResourceNeedMatch(sourceMember, targetMember);
-  
-  // 分析共同兴趣/标签
-  const commonInterests = analyzeCommonInterests(sourceMember, targetMember);
-  
-  // 计算匹配评分 (0-100)
-  const matchScore = calculateMatchScore(resourceNeedMatch.reasons.length, commonInterests.reasons.length);
-  
-  // 合并理由
-  const allReasons = [...resourceNeedMatch.reasons, ...commonInterests.reasons];
-  
-  // 生成潜在价值/合作建议
-  const potentialValue = generatePotentialValue(sourceMember, targetMember, allReasons);
-  
-  return {
-    sourceId,
-    targetId,
-    matchScore,
-    reasons: allReasons,
-    potentialValue
-  };
-};
-
-/**
- * 分析资源需求匹配
- */
-const analyzeResourceNeedMatch = (sourceMember: Member, targetMember: Member) => {
-  const reasons: string[] = [];
-  
-  // 检查源成员的资源是否满足目标成员的需求
-  sourceMember.resources.forEach(resource => {
-    targetMember.needs.forEach(need => {
-      const resourceTags = resource.tags || [];
-      const needTags = need.tags || [];
-      
-      const matchingTags = resourceTags.filter(tag => needTags.includes(tag));
-      if (matchingTags.length > 0) {
-        reasons.push(`${sourceMember.nickname}的"${resource.content.slice(0, 20)}..."可能满足${targetMember.nickname}的"${need.content.slice(0, 20)}..."`);
-      }
+  try {
+    console.log(`正在通过API分析成员 ${sourceMember.nickname} 和 ${targetMember.nickname} 的匹配度...`);
+    const response = await axios.post(`${API_BASE_URL}/match-analysis`, {
+      sourceMember,
+      targetMember
     });
-  });
-  
-  // 检查目标成员的资源是否满足源成员的需求
-  targetMember.resources.forEach(resource => {
-    sourceMember.needs.forEach(need => {
-      const resourceTags = resource.tags || [];
-      const needTags = need.tags || [];
-      
-      const matchingTags = resourceTags.filter(tag => needTags.includes(tag));
-      if (matchingTags.length > 0) {
-        reasons.push(`${targetMember.nickname}的"${resource.content.slice(0, 20)}..."可能满足${sourceMember.nickname}的"${need.content.slice(0, 20)}..."`);
-      }
-    });
-  });
-  
-  return { reasons };
-};
-
-/**
- * 分析共同兴趣
- */
-const analyzeCommonInterests = (sourceMember: Member, targetMember: Member) => {
-  const reasons: string[] = [];
-  
-  if (sourceMember.tags && targetMember.tags) {
-    const commonTags = sourceMember.tags.filter(tag => targetMember.tags?.includes(tag));
     
-    if (commonTags.length > 0) {
-      reasons.push(`${sourceMember.nickname}和${targetMember.nickname}都关注: ${commonTags.join(', ')}`);
+    if (response.status === 200) {
+      const result = response.data;
+      console.log(`成功获取匹配结果，匹配度: ${result.matchScore}`);
+      return {
+        sourceId,
+        targetId,
+        matchScore: result.matchScore || 50,
+        reasons: result.reasons || [],
+        potentialValue: result.potentialValue || ""
+      };
+    } else {
+      console.warn(`API返回了非预期的响应:`, response.data);
+      return generateFallbackMatchAnalysis(sourceMember, targetMember);
     }
+  } catch (error) {
+    console.error(`调用匹配分析API失败:`, error);
+    return generateFallbackMatchAnalysis(sourceMember, targetMember);
   }
-  
+};
+
+/**
+ * 备用匹配分析生成器，当API调用失败时使用
+ */
+const generateFallbackMatchAnalysis = (sourceMember: Member, targetMember: Member): MatchResult => {
   // 检查地理位置
-  if (sourceMember.location === targetMember.location) {
+  const locationMatch = sourceMember.location === targetMember.location;
+  
+  // 检查共同标签
+  const sourceTagSet = new Set(sourceMember.tags || []);
+  const targetTagSet = new Set(targetMember.tags || []);
+  const commonTags: string[] = [];
+  
+  sourceTagSet.forEach(tag => {
+    if (targetTagSet.has(tag)) {
+      commonTags.push(tag);
+    }
+  });
+  
+  // 检查资源-需求匹配
+  const resourceNeedMatches: string[] = [];
+  
+  // 源成员资源匹配目标成员需求
+  sourceMember.resources.forEach(resource => {
+    const resourceTags = resource.tags || [];
+    
+    targetMember.needs.forEach(need => {
+      const needTags = need.tags || [];
+      
+      const matchingTags = resourceTags.filter(tag => needTags.includes(tag));
+      if (matchingTags.length > 0) {
+        resourceNeedMatches.push(`${sourceMember.nickname}的"${resource.content.slice(0, 20)}..."可能满足${targetMember.nickname}的"${need.content.slice(0, 20)}..."`);
+      }
+    });
+  });
+  
+  // 目标成员资源匹配源成员需求
+  targetMember.resources.forEach(resource => {
+    const resourceTags = resource.tags || [];
+    
+    sourceMember.needs.forEach(need => {
+      const needTags = need.tags || [];
+      
+      const matchingTags = resourceTags.filter(tag => needTags.includes(tag));
+      if (matchingTags.length > 0) {
+        resourceNeedMatches.push(`${targetMember.nickname}的"${resource.content.slice(0, 20)}..."可能满足${sourceMember.nickname}的"${need.content.slice(0, 20)}..."`);
+      }
+    });
+  });
+  
+  // 生成匹配理由
+  const reasons: string[] = [];
+  
+  // 添加地理位置理由
+  if (locationMatch) {
     reasons.push(`${sourceMember.nickname}和${targetMember.nickname}都位于${sourceMember.location}，便于线下交流`);
   }
   
-  return { reasons };
-};
-
-/**
- * 计算匹配评分
- */
-const calculateMatchScore = (resourceMatchCount: number, interestMatchCount: number): number => {
-  // 资源匹配权重高于兴趣匹配
-  const resourceScore = Math.min(70, resourceMatchCount * 25);
-  const interestScore = Math.min(30, interestMatchCount * 15);
-  
-  return Math.min(100, resourceScore + interestScore);
-};
-
-/**
- * 生成潜在价值/合作建议
- */
-const generatePotentialValue = (sourceMember: Member, targetMember: Member, reasons: string[]): string => {
-  if (reasons.length === 0) {
-    return "暂无明显合作价值点";
+  // 添加共同标签理由
+  if (commonTags.length > 0) {
+    reasons.push(`${sourceMember.nickname}和${targetMember.nickname}都关注: ${commonTags.join(', ')}`);
   }
   
-  // 模拟LLM生成合作建议
-  const suggestions = [
-    `${sourceMember.nickname}和${targetMember.nickname}可以在${getRandomElement(sourceMember.tags || [])}领域展开深度合作`,
-    `建议${sourceMember.nickname}可以与${targetMember.nickname}探讨关于${getRandomElement(targetMember.tags || [])}的合作机会`,
-    `双方可以通过定期交流，分享各自在${getCommonTag(sourceMember, targetMember)}领域的最新进展和洞察`,
-    `${sourceMember.nickname}可以为${targetMember.nickname}提供${getRandomElement(sourceMember.tags || [])}方面的支持，而${targetMember.nickname}则可以在${getRandomElement(targetMember.tags || [])}方面提供帮助`
-  ];
+  // 添加资源-需求匹配理由
+  reasons.push(...resourceNeedMatches.slice(0, 3));
   
-  return getRandomElement(suggestions);
-};
-
-/**
- * 获取随机元素
- */
-const getRandomElement = <T>(array: T[]): T => {
-  if (array.length === 0) return "通用领域" as unknown as T;
-  const index = Math.floor(Math.random() * array.length);
-  return array[index];
-};
-
-/**
- * 获取共同标签
- */
-const getCommonTag = (memberA: Member, memberB: Member): string => {
-  if (!memberA.tags || !memberB.tags || memberA.tags.length === 0 || memberB.tags.length === 0) {
-    return "通用领域";
+  // 如果理由不足3条，添加通用理由
+  if (reasons.length < 3) {
+    reasons.push(`${sourceMember.nickname}和${targetMember.nickname}可以在专业领域互相交流经验`);
+    reasons.push(`双方可以探索更多未被发现的合作机会`);
   }
   
-  const commonTags = memberA.tags.filter(tag => memberB.tags?.includes(tag));
-  return commonTags.length > 0 ? commonTags[0] : "通用领域";
+  // 限制最多5条理由
+  const finalReasons = reasons.slice(0, 5);
+  
+  // 计算匹配评分
+  let matchScore = 40; // 基础分
+  
+  if (locationMatch) matchScore += 10;
+  matchScore += commonTags.length * 5; // 每个共同标签加5分
+  matchScore += resourceNeedMatches.length * 10; // 每个资源-需求匹配加10分
+  
+  // 限制在0-100范围内
+  matchScore = Math.min(100, Math.max(0, matchScore));
+  
+  // 生成合作建议
+  const getRandomTag = (member: Member): string => {
+    const tags = member.tags || [];
+    return tags.length > 0 ? tags[Math.floor(Math.random() * tags.length)] : "专业领域";
+  };
+  
+  const getCommonTag = (): string => {
+    return commonTags.length > 0 ? commonTags[0] : "共同关注的领域";
+  };
+  
+  const potentialValue = `${sourceMember.nickname}可以为${targetMember.nickname}提供${getRandomTag(sourceMember)}方面的支持，而${targetMember.nickname}则可以在${getRandomTag(targetMember)}方面助力。双方可以通过定期交流，分享各自在${getCommonTag()}的最新进展和洞察，创造更大的价值。`;
+  
+  return {
+    sourceId: sourceMember.id,
+    targetId: targetMember.id,
+    matchScore,
+    reasons: finalReasons,
+    potentialValue
+  };
 }; 
