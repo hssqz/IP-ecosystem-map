@@ -55,17 +55,19 @@ const RelationGraph: React.FC<RelationGraphProps> = ({
       label: {
         show: true,
         position: 'right',
-        formatter: node.name
+        formatter: node.name,
+        fontSize: 14,
+        fontWeight: 'bold'
       },
       // 高亮选中的节点
       itemStyle: {
         // 如果有选中的成员，且当前节点是选中的成员，则高亮显示
-        borderWidth: selectedMember && selectedMember.id === node.id ? 2 : 0,
+        borderWidth: selectedMember && selectedMember.id === node.id ? 3 : 0,
         borderColor: '#ff0000',
       }
     }));
 
-    // 设置连线数据
+    // 设置连线数据，减少文字显示
     const links = filteredLinks.map(link => ({
       source: link.source,
       target: link.target,
@@ -77,13 +79,12 @@ const RelationGraph: React.FC<RelationGraphProps> = ({
                link.type === 'need' ? '#2ca02c' : 
                link.type === 'location' ? '#9467bd' : 
                link.type === 'interest' ? '#8c564b' : '#d62728',
-        curveness: 0.3 // 连线曲率
+        curveness: 0.3, // 连线曲率
+        opacity: 0.7 // 透明度，使图看起来不那么拥挤
       },
+      // 不在连线上直接显示文字，只在tooltip中显示
       label: {
-        show: true,
-        formatter: link.description,
-        fontSize: 10,
-        color: '#555'
+        show: false
       }
     }));
 
@@ -91,7 +92,7 @@ const RelationGraph: React.FC<RelationGraphProps> = ({
     const option: any = {
       title: {
         text: '成员关系图谱',
-        subtext: '点击节点查看成员详情',
+        subtext: '点击节点查看成员详情，悬停查看关系说明',
         left: 'center'
       },
       tooltip: {
@@ -112,9 +113,42 @@ const RelationGraph: React.FC<RelationGraphProps> = ({
               <div>需求数: ${member.needs.length}</div>
               <div style="margin-top:5px;color:#666">点击查看详情</div>
             `;
-          } else {
-            return params.data.label?.formatter || '未知关系';
+          } else if (params.dataType === 'edge') {
+            // 为连线提供更详细的tooltip
+            const source = members.find(m => m.id === params.data.source);
+            const target = members.find(m => m.id === params.data.target);
+            const linkData = filteredLinks.find(
+              l => l.source === params.data.source && l.target === params.data.target
+            );
+            
+            if (!source || !target || !linkData) return '未知关系';
+            
+            // 根据关系类型定制显示内容
+            let relationTypeText = '';
+            switch(linkData.type) {
+              case 'resource':
+                relationTypeText = '资源匹配';
+                break;
+              case 'interest':
+                relationTypeText = '共同兴趣';
+                break;
+              case 'location':
+                relationTypeText = '地理位置';
+                break;
+              default:
+                relationTypeText = '关系';
+            }
+            
+            return `
+              <div style="font-weight:bold;color:#333;border-bottom:1px solid #ccc;padding-bottom:5px;margin-bottom:5px">
+                ${relationTypeText}
+              </div>
+              <div style="margin-bottom:8px">${source.nickname} → ${target.nickname}</div>
+              <div style="color:#666;font-size:13px">${linkData.description}</div>
+            `;
           }
+          
+          return '';
         }
       },
       legend: {
@@ -133,6 +167,7 @@ const RelationGraph: React.FC<RelationGraphProps> = ({
           links: links,
           categories: categories,
           roam: true, // 允许缩放和平移
+          draggable: true, // 允许拖拽调整节点位置
           label: {
             position: 'right',
             formatter: '{b}'
@@ -144,13 +179,13 @@ const RelationGraph: React.FC<RelationGraphProps> = ({
           emphasis: {
             focus: 'adjacency', // 高亮相邻节点
             lineStyle: {
-              width: 10
+              width: 6
             }
           },
           force: {
-            repulsion: 100, // 节点之间的斥力
+            repulsion: 200, // 增加节点之间的斥力，使布局更分散
             gravity: 0.1, // 重力
-            edgeLength: 100, // 边长
+            edgeLength: 120, // 增加边长，减少文字重叠
             friction: 0.6 // 摩擦系数
           }
         }
@@ -184,10 +219,11 @@ const RelationGraph: React.FC<RelationGraphProps> = ({
             color: filterType === 'all' ? 'white' : 'black',
             border: 'none',
             borderRadius: '4px',
-            cursor: 'pointer'
+            cursor: 'pointer',
+            fontWeight: 'bold'
           }}
         >
-          全部
+          全部关系
         </button>
         <button 
           onClick={() => setFilterType('resource')} 
@@ -198,7 +234,8 @@ const RelationGraph: React.FC<RelationGraphProps> = ({
             color: filterType === 'resource' ? 'white' : 'black',
             border: 'none',
             borderRadius: '4px',
-            cursor: 'pointer'
+            cursor: 'pointer',
+            fontWeight: 'bold'
           }}
         >
           资源匹配
@@ -212,7 +249,8 @@ const RelationGraph: React.FC<RelationGraphProps> = ({
             color: filterType === 'interest' ? 'white' : 'black',
             border: 'none',
             borderRadius: '4px',
-            cursor: 'pointer'
+            cursor: 'pointer',
+            fontWeight: 'bold'
           }}
         >
           共同兴趣
@@ -226,7 +264,8 @@ const RelationGraph: React.FC<RelationGraphProps> = ({
             color: filterType === 'location' ? 'white' : 'black',
             border: 'none',
             borderRadius: '4px',
-            cursor: 'pointer'
+            cursor: 'pointer',
+            fontWeight: 'bold'
           }}
         >
           地理位置
