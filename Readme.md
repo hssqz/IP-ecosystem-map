@@ -66,7 +66,7 @@
 
 ### 4.2 后端实现
 - 基于预设成员数据构建简化的用户数据管理系统
-- 集成大语言模型API（如Gemini等）
+- 集成大语言模型API（使用Gemini等）
 - 实现简化版的关系分析算法
 - 设计基础的资源匹配推荐逻辑
 
@@ -78,3 +78,43 @@
 ## 附录：数据来源说明
 
 本Demo版使用预先整理的成员表数据（成员表.md），包含成员的昵称、地点、自我介绍、资源和需求信息。系统将直接基于这些数据进行分析和可视化，无需额外的信息收集流程。
+
+
+## 使用 gemini-2.0-pro-exp-02-05 
+import base64
+import os
+from google import genai
+from google.genai import types
+
+
+def generate():
+    client = genai.Client(
+        api_key=os.environ.get("GEMINI_API_KEY"),
+    )
+
+    model = "gemini-2.0-pro-exp-02-05"
+    contents = [
+        types.Content(
+            role="user",
+            parts=[
+                types.Part.from_text(text="""INSERT_INPUT_HERE"""),
+            ],
+        ),
+    ]
+    generate_content_config = types.GenerateContentConfig(
+        temperature=1,
+        top_p=0.95,
+        top_k=64,
+        max_output_tokens=8192,
+        response_mime_type="text/plain",
+    )
+
+    for chunk in client.models.generate_content_stream(
+        model=model,
+        contents=contents,
+        config=generate_content_config,
+    ):
+        print(chunk.text, end="")
+
+if __name__ == "__main__":
+    generate()
